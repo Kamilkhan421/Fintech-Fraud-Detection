@@ -12,10 +12,12 @@ except ImportError:
 class Settings(BaseSettings):
     """Application settings"""
     
-    # Database
+    # Database - supports both PostgreSQL and SQLite
+    # Use SQLite for local development (no setup required)
+    # Use PostgreSQL for production (set DATABASE_URL environment variable)
     DATABASE_URL: str = os.getenv(
         "DATABASE_URL",
-        "postgresql+asyncpg://postgres:password@localhost:5432/frauddb"
+        "sqlite+aiosqlite:///./sentinelstream.db"  # Default to SQLite for easy setup
     )
     
     # Redis

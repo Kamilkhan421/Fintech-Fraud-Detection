@@ -1,16 +1,27 @@
 """Database configuration and session management"""
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 from sqlalchemy.orm import declarative_base
+from sqlalchemy.pool import StaticPool
 from app.config import settings
 
-# Create async engine
-engine = create_async_engine(
-    settings.DATABASE_URL,
-    echo=settings.DEBUG,
-    pool_pre_ping=True,
-    pool_size=10,
-    max_overflow=20
-)
+# Configure engine based on database type
+if "sqlite" in settings.DATABASE_URL.lower():
+    # SQLite configuration
+    engine = create_async_engine(
+        settings.DATABASE_URL,
+        echo=settings.DEBUG,
+        connect_args={"check_same_thread": False},  # Required for SQLite
+        poolclass=StaticPool,  # SQLite doesn't support connection pooling
+    )
+else:
+    # PostgreSQL configuration
+    engine = create_async_engine(
+        settings.DATABASE_URL,
+        echo=settings.DEBUG,
+        pool_pre_ping=True,
+        pool_size=10,
+        max_overflow=20
+    )
 
 # Create async session factory
 AsyncSessionLocal = async_sessionmaker(
@@ -73,8 +84,21 @@ async def get_db() -> AsyncSession:
 
 async def init_db():
     """Initialize database tables"""
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
+    try:
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
+        print("[SUCCESS] Database initialized successfully!")
+    except Exception as e:
+        print(f"[WARNING] Database initialization warning: {e}")
+        # Try again without begin() for SQLite
+        try:
+            async with engine.connect() as conn:
+                await conn.run_sync(Base.metadata.create_all)
+                await conn.commit()
+            print("[SUCCESS] Database initialized successfully!")
+        except Exception as e2:
+            print(f"[ERROR] Database initialization failed: {e2}")
+            raise
 
 
 async def close_db():
